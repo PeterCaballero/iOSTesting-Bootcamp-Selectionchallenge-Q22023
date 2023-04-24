@@ -55,26 +55,29 @@ extension UIImageView{
 }
 
 
+
+
 extension UIImageView {
     
-    func downloaded(from url: URL, contentMode mode: ContentMode = .scaleToFill) {
+    func downloaded(from url: URL,index: Int, contentMode mode: ContentMode = .scaleToFill){
+        var fetched = false
         contentMode = mode
         image = UIImage.gifWithName("imageLoader")
+   
         
-        
-        let imageCache = NSCache<NSString, UIImage>()
-        if let cachedImage = imageCache.object(forKey: url.absoluteString as NSString) {
+        if let cachedImage = CacheImagesManager.getImage(key: url.absoluteString) {
             DispatchQueue.main.async() { [weak self] in
-                self?.image = cachedImage
+                if URLImagesManager.shared.fetchAll {
+                    URLImagesManager.shared.setImageStatusWith(url: url.absoluteString, status: .stored, index: index)
+                    
+                    if URLImagesManager.shared.wereAllImagesFetched() {
+                        self?.image = cachedImage
+                    }
+                }else{
+                    self?.image = cachedImage
+                }
             }
         }else{
-            /*
-            //Test broken link
-            let urlFinal = String(url.absoluteString.dropFirst())
-            print(urlFinal)
-            let URLFF = URL(string: urlFinal)
-             URLSession.shared.dataTask(with: URLFF!) { data, response, error in
-            */
             
             URLSession.shared.dataTask(with: url) { data, response, error in
                 guard
@@ -84,23 +87,40 @@ extension UIImageView {
                     let image = UIImage(data: data)
                     else {
                         DispatchQueue.main.async() { [weak self] in
+                            URLImagesManager.shared.setImageStatusWith(url: url.absoluteString , status: .broken,index: index)
+                            fetched = true
                             self?.image = UIImage(named: "imageThumb")
                         }
                         return
                     }
-                
-                
+                                
                 DispatchQueue.main.async() { [weak self] in
-                    imageCache.setObject(image, forKey: url.absoluteString as NSString)
-                    self?.image = image
+                    let urlString = url.absoluteString
+                    
+                    CacheImagesManager.storeImage(key: urlString, img: image)
+                    URLImagesManager.shared.setImageStatusWith(url: urlString, status: .stored,index: index)
+                    
+                    if URLImagesManager.shared.fetchAll {
+                        if URLImagesManager.shared.wereAllImagesFetched() {
+                            
+                            self?.image = image
+                            
+                        }
+                    }else{
+                        self?.image = image
+                    }
+                    
+                    
                 }
             }.resume()
+            
         }
+        
     }
         
         
-    func downloaded(from link: String, contentMode mode: ContentMode = .scaleToFill) {
+    func downloaded(from link: String, index: Int, contentMode mode: ContentMode = .scaleToFill) {
         guard let url = URL(string: link) else { return }
-        downloaded(from: url, contentMode: mode)
+        downloaded(from: url,index: index, contentMode: mode)
     }
 }
